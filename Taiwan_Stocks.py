@@ -12,16 +12,25 @@ class Taiwan_Stocks(SD.Stocks_Draw):
 
         
         # Get all the settings done 
-        self.stock_name = ""
-        self.stock_num = ""
-        self.table_name = "stock_tsw"
+
+        # print(self.table_name)
+        # print(self.Flag_tpe_stocks)
+        # print(self.Flag_tsw_stocks) 
+        
+        # self.stock_name = ""
+        # self.stock_num = ""
+
+        self.table_name = "daily_price" #每日價格
+        self.table_name2 = "daily_insti_inv"  #每日三大法人
+        self.table_name3 = "daily_statistics"  #每日本益比
+
         self.dates = []
         self.Stocks_settings()
 
         # Check whether it is a tpe or tsw stock
 
 
-        self.Flag_tpe_stocks = False
+        self.Flag_tpe_stocks = True
 
         # 輪流開看看
         self.Flag_tsw_stocks = True
@@ -61,19 +70,15 @@ class Taiwan_Stocks(SD.Stocks_Draw):
         # print("\n----Please enter the date interval----\nThe format is...\nstart time -> 20210102\nend time -> 20210228")
 
 
-        # print("\n  {}".format("(2) Please enter the date interval"))
-        # print("----------------------------------------")
-        # print("\n{:^39}".format("The Date Format"))
-        # print("########################################")
-        # print("#{:^38}#".format("start time -> 20210101"))
-        # print("#{:^38}#".format("End time   -> 20210228"))
-        # print("########################################")
-        # start_time = input("\nEnter the start time: ")
-        # end_time = input("Enter the end time:   ")
-
-        start_time = '20240508'
-        end_time = '20240510'
-
+        print("\n  {}".format("(2) Please enter the date interval"))
+        print("----------------------------------------")
+        print("\n{:^39}".format("The Date Format"))
+        print("########################################")
+        print("#{:^38}#".format("start time -> 20210101"))
+        print("#{:^38}#".format("End time   -> 20210228"))
+        print("########################################")
+        start_time = input("\nEnter the start time: ")
+        end_time = input("Enter the end time:   ")
 
         # Get the date, format -> 20210104
         self.time_calculate(start_time, end_time)

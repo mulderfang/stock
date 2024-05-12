@@ -3,6 +3,8 @@ import requests
 from io import StringIO
 import pandas as pd
 import time
+import json
+from json import load
 
 
 class Stocks_Crawl(MD.MySQL_Database):
@@ -146,7 +148,7 @@ class Stocks_Crawl(MD.MySQL_Database):
 
                     # 本益比, 股價淨值比, 殖利率(%), 股利年度
 
-                    self.Crawl_PB_and_PE(ROC_era_date)
+                    # self.Crawl_PB_and_PE(ROC_era_date,date)  #算一次就好
 
                 ################ 爬上市公司 ################
                 
@@ -156,7 +158,7 @@ class Stocks_Crawl(MD.MySQL_Database):
                     self.Crawl_method(url = self.url_stock, 
                                             date = date, 
                                             Date = date, 
-                                            url_suffix='&type=ALL', 
+                                            url_suffix='&type=ALLBUT0999', 
                                             Flag_tpex_stocks=False,
                                             Flag_tpex_insti_inv=False,
                                             Flag_stocks=True, 
@@ -174,7 +176,7 @@ class Stocks_Crawl(MD.MySQL_Database):
 
                     # 本益比, 股價淨值比, 殖利率(%), 股利年度
 
-                    self.Crawl_PB_and_PE(date)
+                    self.Crawl_PB_and_PE(ROC_era_date,date)
 
             except Exception as err:
                 
@@ -267,7 +269,7 @@ class Stocks_Crawl(MD.MySQL_Database):
                      Flag_stocks=False, Flag_insti_inv=False):
         
         # 下載股價
-        r = requests.post( url + date + url_suffix)
+        r = requests.get( url + date + url_suffix)
 
         # 整理資料，變成表格
         
@@ -290,13 +292,18 @@ class Stocks_Crawl(MD.MySQL_Database):
             #df = self.Get_specific_stock(df)
 
             df.insert(0, "Date", Date)
+            
+            df = df[df['證券代號'].apply(lambda x: len(x) == 4)]
 
             df.drop("均價 ", axis = "columns", inplace = True)
             
             df["漲跌(+/-)"] = df["漲跌價差"].values[0][0] if df["漲跌價差"].values[0][0] != "0" else "X"
 
-            self.df_stocks = self.df_stocks.append(df, ignore_index=True)
-
+            # self.df_stocks = self.df_stocks.append(df, ignore_index=True)
+            if not self.df_stocks.empty and not df.empty:
+                self.df_stocks = pd.concat([self.df_stocks, df], ignore_index=True)
+            else : 
+                self.df_stocks = df.copy()
         
         if Flag_tpex_insti_inv:
 
@@ -312,10 +319,15 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             df = self.Rename_df_columns(df, Flag_tpex_stocks = False, Flag_tpex_insti_inv = True)
 
+            df = df[df['證券代號'].apply(lambda x: len(x) == 4)]
+
             #df = self.Get_specific_stock(df)
             
-            self.df_institutional_investors = self.df_institutional_investors.append(df, ignore_index = True)
-
+            # self.df_institutional_investors = self.df_institutional_investors.append(df, ignore_index = True)
+            if not self.df_institutional_investors.empty and not df.empty:
+                self.df_institutional_investors = pd.concat([self.df_institutional_investors, df], ignore_index=True)
+            else : 
+                self.df_institutional_investors = df.copy()   
 
         ######### 爬上市公司 #########
 
@@ -323,21 +335,18 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             df = pd.read_csv(StringIO(r.text.replace("=", "")), 
                              header = ["證券代號" in l for l in r.text.split("\n")].index(True)-1 )
-
+          
             df.insert(0, "Date", date)
 
             df = df.iloc[:, :12]
 
+            df = df[df['證券代號'].apply(lambda x: len(x) == 4)]
+
             #df = self.Get_specific_stock(df)
-            print("----------------------------------------")
-            print(self.df_stocks)
-            print("----------------------------------------")
-            print(type(df))
-            print(df)
-            print("----------------------------------------")
-            self.df_stocks = pd.concat([self.df_stocks, df], ignore_index=True)
-
-
+            if not self.df_stocks.empty and not df.empty:
+                self.df_stocks = pd.concat([self.df_stocks, df], ignore_index=True)
+            else : 
+                self.df_stocks = df.copy()      
         
         if Flag_insti_inv:
 
@@ -346,9 +355,14 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             df.insert(0, "Date", date)
 
-            df = self.Get_specific_stock(df)
-            
-            self.df_institutional_investors = self.df_institutional_investors.append(df, ignore_index = True)
+            df = df[df['證券代號'].apply(lambda x: len(x) == 4)]
+
+            #df = self.Get_specific_stock(df)
+            # self.df_institutional_investors = pd.concat([self.df_institutional_investors, df], ignore_index=True)
+            if not self.df_institutional_investors.empty and not df.empty:
+                self.df_institutional_investors = pd.concat([self.df_institutional_investors, df], ignore_index=True)
+            else : 
+                self.df_institutional_investors = df.copy()   
 
 
     # 合併Date
@@ -358,11 +372,14 @@ class Stocks_Crawl(MD.MySQL_Database):
 
         # 將index reset 以免concat出現NaN值
         self.df_stocks.reset_index(drop=True, inplace=True)
+
         self.df_institutional_investors.reset_index(drop=True, inplace=True)
+
         self.df_statistics.reset_index(drop=True, inplace=True)
 
-        self.df_stocks = pd.concat([self.df_stocks, self.df_institutional_investors.drop(columns=["Date", "證券代號", "證券名稱"]), 
-                        self.df_statistics.drop(columns=["證券代號", "證券名稱"])], axis = 1)
+
+        # self.df_stocks = pd.concat([self.df_stocks, self.df_institutional_investors.drop(columns=["Date", "證券代號", "證券名稱"]), 
+        #                 self.df_statistics.drop(columns=["證券代號", "證券名稱"])], axis = 1)
 
 
     # 將Date存進資料庫
@@ -388,14 +405,54 @@ class Stocks_Crawl(MD.MySQL_Database):
             except Exception as err:
                 
                 # print(err)
-                print("This data already exists in this table, jumping...")
+                print("This df_stocks data already exists in this table, jumping...")
                 continue
-    
+
+        # ============================================================================
+        cols = "`,`".join([str(i) for i in self.df_institutional_investors.columns.tolist()])
+
+        # Insert DataFrame recrds one by one.
+        for i, row in self.df_institutional_investors.iterrows():
+
+            try:
+                sql = "INSERT INTO `{}` (`".format(self.table_name2) +cols + "`) VALUES (" + "%s,"*(len(row)-1) + "%s)"
+                
+                self.cursor.execute(sql, tuple(row))
+
+                # the connection is not autocommitted by default, so we must commit to save our changes
+                self.db.commit()
+                
+            except Exception as err:
+                
+                # print(err)
+                print("This df_institutional_investors data already exists in this table, jumping...")
+                continue
+        # ============================================================================
+        cols = "`,`".join([str(i) for i in self.df_statistics.columns.tolist()])
+
+        # Insert DataFrame recrds one by one.
+        for i, row in self.df_statistics.iterrows():
+
+            try:
+                sql = "INSERT INTO `{}` (`".format(self.table_name3) +cols + "`) VALUES (" + "%s,"*(len(row)-1) + "%s)"
+                
+                self.cursor.execute(sql, tuple(row))
+
+                # the connection is not autocommitted by default, so we must commit to save our changes
+                self.db.commit()
+                
+            except Exception as err:
+                
+                # print(err)
+                print("This df_statistics data already exists in this table, jumping...")
+                continue
+        # ============================================================================
+
 
     # 抓取PB, PE
     #############################################
 
-    def Crawl_PB_and_PE(self, date):
+    def Crawl_PB_and_PE(self, ROC_era_date,date):
 
         """
         This function is for crwaling the PB, PE and Dividend yield statistics.
@@ -406,7 +463,7 @@ class Stocks_Crawl(MD.MySQL_Database):
 
         if self.Flag_tpe_stocks:
             
-            url = "https://www.tpex.org.tw/web/stock/aftertrading/peratio_analysis/pera_download.php?l=zh-tw&d="+date+"&s=0,asc,0"
+            url = "https://www.tpex.org.tw/web/stock/aftertrading/peratio_analysis/pera_download.php?l=zh-tw&d="+ROC_era_date+"&s=0,asc,0"
 
             r = requests.get(url)
 
@@ -414,7 +471,9 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             df = pd.read_csv(StringIO("\n".join(r[3:-1]))).fillna(0)
 
-            columns_title = ["股票代號", "名稱", "本益比", "股價淨值比", "殖利率(%)", "股利年度" ]
+            df.insert(0, "Date", date)
+
+            columns_title = ["Date","股票代號", "名稱", "本益比", "股價淨值比", "殖利率(%)", "股利年度" ]
 
             df = df[columns_title]
 
@@ -422,7 +481,12 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             #df = self.Get_specific_stock(df)
 
-            self.df_statistics = self.df_statistics.append(df, ignore_index=True)
+            # self.df_statistics = self.df_statistics.append(df, ignore_index=True)
+            # self.df_statistics = pd.concat([self.df_statistics, df], ignore_index=True)
+            if not self.df_statistics.empty and not df.empty:
+                self.df_statistics = pd.concat([self.df_statistics, df], ignore_index=True)
+            else : 
+                self.df_statistics = df.copy()   
 
 
         # 上市公司
@@ -436,8 +500,10 @@ class Stocks_Crawl(MD.MySQL_Database):
             r = r.text.split("\r\n")[:-13]
 
             df = pd.read_csv(StringIO("\n".join(r)), header=1).dropna(how="all", axis=1).apply(lambda x:x.replace("-", 0))
-
-            columns_title = ["證券代號", "證券名稱", "本益比", "股價淨值比", "殖利率(%)", "股利年度" ]
+            
+            df.insert(0, "Date", date)
+            
+            columns_title = ["Date","證券代號", "證券名稱", "本益比", "股價淨值比", "殖利率(%)", "股利年度" ]
 
             df = df[columns_title]
 
@@ -445,6 +511,10 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             #df = self.Get_specific_stock(df)
 
-            self.df_statistics = self.df_statistics.append(df, ignore_index=True)
+            if not self.df_statistics.empty and not df.empty:
+                self.df_statistics = pd.concat([self.df_statistics, df], ignore_index=True)
+            else : 
+                self.df_statistics = df.copy()   
+            
 
         

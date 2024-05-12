@@ -13,5 +13,8 @@ db_settings = { "host": "127.0.0.1",
                 "db": "sql_stock",
                 "charset": "utf8" }
 
+
 stocks = TS.Taiwan_Stocks( db_settings = db_settings, Crawl_flag = True, MySQL_flag = True,
-                           Fetch_stock_statistics_flag = True, timesleep = 5)
+                           Fetch_stock_statistics_flag = True, table_name = "stock_tsw",Flag_tpe_stocks = False, Flag_tsw_stocks = True,  timesleep = 5)
+
+
