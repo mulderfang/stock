@@ -160,8 +160,9 @@ class MySQL_Database:
         self.Cursor()
 
         #使用connect指定的Mysql獲取資料
-        self.df_stocks = pd.read_sql('SELECT * FROM stocks.{}'.format(self.table_name), con = self.db)
-        self.df_institutional_investors = pd.read_sql('SELECT * FROM stocks.{}'.format(self.table_name), con = self.db)
+        self.df_stocks = pd.read_sql('SELECT * FROM sql_stock.{}'.format(self.table_name ), con = self.db)
+        self.df_institutional_investors = pd.read_sql('SELECT * FROM sql_stock.{}'.format(self.table_name2), con = self.db)
+        self.df_category = pd.read_sql('SELECT * FROM sql_stock.{}'.format(self.table_name4), con = self.db)
 
         # 先把Date的部分轉回str，不然後面畫圖會出錯
         self.df_stocks["Date"] = self.df_stocks["Date"].apply(lambda x: str(x))

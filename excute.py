@@ -13,8 +13,25 @@ db_settings = { "host": "127.0.0.1",
                 "db": "sql_stock",
                 "charset": "utf8" }
 
+# 更新資料庫
+# stocks = TS.Taiwan_Stocks( db_settings = db_settings, Crawl_flag = True, MySQL_flag = True,
+#                            Fetch_stock_statistics_flag = False, Flag_sub_category=False, Flag_twse = True,  timesleep = 5)
 
-stocks = TS.Taiwan_Stocks( db_settings = db_settings, Crawl_flag = True, MySQL_flag = True,
-                           Fetch_stock_statistics_flag = True, table_name = "stock_tsw",Flag_tpe_stocks = False, Flag_tsw_stocks = True,  timesleep = 5)
+# Flag_sub_category 更新細產業
+
+
+# stocks = TS.Taiwan_Stocks( db_settings = db_settings, Crawl_flag = False, MySQL_flag = True,
+#                            Fetch_stock_statistics_flag = False,  timesleep = 5)
+
+
+stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
+                          Crawl_flag = True, 
+                          MySQL_flag = True,
+                          Fetch_stock_statistics_flag = False, 
+                          Flag_sub_category=False, # 不用一直開著
+                          Flag_twse = True, 
+                          Flag_tpe_stocks = False, 
+                          Flag_tsw_stocks = False,  
+                          timesleep = 5)
 
 

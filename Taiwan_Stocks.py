@@ -1,4 +1,4 @@
-import Stocks_Draw as SD
+import Stocks_Crawl as SC
 import requests
 from io import StringIO
 from datetime import date
@@ -6,7 +6,7 @@ from dateutil.rrule import rrule, DAILY
 import pandas as pd
 
 
-class Taiwan_Stocks(SD.Stocks_Draw):
+class Taiwan_Stocks(SC.Stocks_Crawl):
 
     def __init__(self, **kwargs):
 
@@ -23,6 +23,8 @@ class Taiwan_Stocks(SD.Stocks_Draw):
         self.table_name = "daily_price" #每日價格
         self.table_name2 = "daily_insti_inv"  #每日三大法人
         self.table_name3 = "daily_statistics"  #每日本益比
+        self.table_name4 = "sub_category"  #每日本益比
+        self.table_name5 = "daily_twse"  #每日本益比
 
         self.dates = []
         self.Stocks_settings()
@@ -30,10 +32,10 @@ class Taiwan_Stocks(SD.Stocks_Draw):
         # Check whether it is a tpe or tsw stock
 
 
-        self.Flag_tpe_stocks = True
+        #self.Flag_tpe_stocks = True
 
         # 輪流開看看
-        self.Flag_tsw_stocks = True
+        #self.Flag_tsw_stocks = True
 
 
         #self.Control_Check_stocks()

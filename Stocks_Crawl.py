@@ -5,18 +5,34 @@ import pandas as pd
 import time
 import json
 from json import load
+import requests
+from bs4 import BeautifulSoup
 
 
 class Stocks_Crawl(MD.MySQL_Database):
     
     def __init__(self, timesleep=5, Crawl_flag = True, MySQL_flag = True, 
-                 Fetch_stock_statistics_flag = True, **kwargs):
+                 Fetch_stock_statistics_flag = True, 
+                 Flag_sub_category = True, 
+                 Flag_twse = True, 
+                 Flag_tpe_stocks = True,
+                 Flag_tsw_stocks = True,
+                 **kwargs):
         
         super().__init__(**kwargs)      
 
         self.Crawl_flag = Crawl_flag
         self.MySQL_flag = MySQL_flag
         self.Fetch_stock_statistics_flag = Fetch_stock_statistics_flag
+        #不用每天跑
+        self.Flag_sub_category = Flag_sub_category
+        #大盤
+        self.Flag_twse= Flag_twse
+        #上櫃
+        self.Flag_tpe_stocks = Flag_tpe_stocks
+        #上市
+        self.Flag_tsw_stocks = Flag_tsw_stocks
+
 
         ################# 上櫃公司價格資料
         self.url_tpex_stock = "http://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_download.php?l=zh-tw&d="
@@ -74,6 +90,14 @@ class Stocks_Crawl(MD.MySQL_Database):
 
         self.df_statistics = pd.DataFrame( data = [], 
                                            columns = ["證券代號", "證券名稱", "本益比", "股價淨值比", "殖利率", "股利年度"])
+        
+        self.url_df_category = 'https://ic.tpex.org.tw/company_chain.php?stk_code='        
+        self.df_category = pd.DataFrame( data = [], 
+                                    columns = ["stock_id", "stock_name", "main_category", "sub_category"]) 
+        
+        self.url_twse = 'https://www.twse.com.tw/exchangeReport/MI_INDEX?reponse=csv&date='        
+        self.df_twse = pd.DataFrame( data = [], 
+                                    columns = ['指數名稱','價格指數值','報酬指數值','漲跌點數','漲跌百分比']) 
 
         
         self.timesleep = timesleep
@@ -178,6 +202,13 @@ class Stocks_Crawl(MD.MySQL_Database):
 
                     self.Crawl_PB_and_PE(ROC_era_date,date)
 
+                if self.Flag_sub_category:
+                    self.sub_category_list(url = self.url_df_category)
+
+                if self.Flag_twse:
+                    self.Crawl_twse(Date = date, url = self.url_twse, url_suffix='&type=ALLBUT0999')
+                
+
             except Exception as err:
                 
                 if type(err) == ValueError:
@@ -266,14 +297,14 @@ class Stocks_Crawl(MD.MySQL_Database):
     #############################################
 
     def Crawl_method(self, url, date, Date, url_suffix='', Flag_tpex_stocks=False, Flag_tpex_insti_inv=False,
-                     Flag_stocks=False, Flag_insti_inv=False):
+                     Flag_stocks=False, Flag_insti_inv=False, Flag_twse=False):
         
         # 下載股價
         r = requests.get( url + date + url_suffix)
 
         # 整理資料，變成表格
         
-        if not Flag_tpex_stocks and not Flag_tpex_insti_inv and not Flag_stocks and not Flag_insti_inv:
+        if not Flag_tpex_stocks and not Flag_tpex_insti_inv and not Flag_stocks and not Flag_insti_inv and not Flag_twse:
             
             print("Error...Crawling nothing, please set the flags right")
             return 0
@@ -365,6 +396,9 @@ class Stocks_Crawl(MD.MySQL_Database):
                 self.df_institutional_investors = df.copy()   
 
 
+            
+
+
     # 合併Date
     #############################################
 
@@ -377,9 +411,85 @@ class Stocks_Crawl(MD.MySQL_Database):
 
         self.df_statistics.reset_index(drop=True, inplace=True)
 
+        self.df_twse.reset_index(drop=True, inplace=True)
 
-        # self.df_stocks = pd.concat([self.df_stocks, self.df_institutional_investors.drop(columns=["Date", "證券代號", "證券名稱"]), 
-        #                 self.df_statistics.drop(columns=["證券代號", "證券名稱"])], axis = 1)
+
+    def Crawl_twse(self, Date, url, url_suffix):
+        data = requests.get(url+Date+url_suffix, timeout=10)
+        if data.text =='':
+            return pd.DataFrame()
+        jsondata = json.loads(data.text)
+        if jsondata['stat'] == 'OK':
+
+            # 存加權指數table
+            df_twse = pd.DataFrame(jsondata['data1']).drop(5, axis=1) 
+            df_twse.columns = ['指數名稱','價格指數值','報酬指數值','漲跌點數','漲跌百分比']
+            df_twse= df_twse.dropna(axis=1,how='all').dropna(axis=0,how='all')
+            df_twse['Date']=Date
+            df_twse= df_twse.apply(lambda s:s.astype(str).str.replace("<p style ='color:red'>",''))
+            df_twse= df_twse.apply(lambda s:s.astype(str).str.replace("<p style ='color:green'>",''))
+            df_twse= df_twse.apply(lambda s:s.astype(str).str.replace("</p>",''))
+            df_twse= df_twse.apply(lambda s:s.astype(str).str.replace(',',''))
+
+            if not self.df_twse.empty and not df_twse.empty:
+                self.df_twse = pd.concat([self.df_twse, df_twse], ignore_index=True)
+            else : 
+                self.df_twse = df_twse.copy()   
+        else:
+            print(Date + 'df_twse data not found' )
+
+    def sub_category_list(self, url):
+
+        #  爬蟲爬細產業 只有第一次需要或有新的股票
+        info_url = "https://api.finmindtrade.com/api/v4/data"
+        token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyMy0wMi0yMyAyMjoxNzoyNiIsInVzZXJfaWQiOiJtdWxkZXIiLCJpcCI6IjIwMy4yMDQuMTkzLjEwNCJ9.K95hVEFR_KVdOG2zdeFMC2DCydLAhEP4MjS97Fvt7UQ"
+
+        # 取得 股票名稱
+        parameter = {
+            "dataset": "TaiwanStockInfo",
+            "token": token, # 參考登入，獲取金鑰
+        }
+        resp = requests.get(info_url, params=parameter)
+        info = resp.json()
+        info = pd.DataFrame(info["data"]) #個股基本資料
+
+
+        categories_to_exclude = ['ETF', 'Index', '大盤', '上櫃指數股票型基金(ETF)']
+        filtered_info = info[~info['industry_category'].isin(categories_to_exclude)]
+        filtered_info = filtered_info[filtered_info['stock_id'].str.len() == 4]
+
+
+        df_category_list = pd.DataFrame()
+        temp_id = ''
+        for i in range(len(filtered_info)):
+            stock_id = filtered_info.iloc[i].stock_id
+            stock_name = filtered_info.iloc[i].stock_name
+            if (stock_id == temp_id):
+                continue
+            else:
+                temp_id = stock_id
+                stock_url = url + filtered_info.iloc[i].stock_id
+                result = requests.get(stock_url) #將此頁面的HTML GET下來
+                result.encoding = 'utf-8'
+                soup = BeautifulSoup(result.text,"html.parser") #將網頁資料以html.parser
+                stock_subcat = soup.find_all("h4")
+                if(len(stock_subcat)==0):
+                    continue
+                else:
+                    for cat in stock_subcat:
+                        if str(cat.text).find(">") == -1:
+                            continue
+                        else:
+                            main = str(cat.text).split('>')[0].replace("\xa0","")
+                            sub = str(cat.text).split('>')[1].replace("\xa0","")
+                            category_list = {
+                                "stock_id": [stock_id],
+                                "stock_name": [stock_name],
+                                "main_category": [main],
+                                "sub_category": [sub]}
+                            category_list_temp = pd.DataFrame(category_list)
+                            df_category_list = pd.concat([df_category_list,category_list_temp])
+        self.df_category = df_category_list
 
 
     # 將Date存進資料庫
@@ -447,6 +557,48 @@ class Stocks_Crawl(MD.MySQL_Database):
                 print("This df_statistics data already exists in this table, jumping...")
                 continue
         # ============================================================================
+
+        if self.Flag_sub_category:
+            # 塞次產業 不用每天跑
+            cols = "`,`".join([str(i) for i in self.df_category.columns.tolist()])
+
+            # Insert DataFrame recrds one by one.
+            for i, row in self.df_category.iterrows():
+
+                try:
+                    sql = "INSERT INTO `{}` (`".format(self.table_name4) +cols + "`) VALUES (" + "%s,"*(len(row)-1) + "%s)"
+                    
+                    self.cursor.execute(sql, tuple(row))
+
+                    # the connection is not autocommitted by default, so we must commit to save our changes
+                    self.db.commit()
+                    
+                except Exception as err:
+                    
+                    # print(err)
+                    print(err)
+                    continue
+        
+        if self.Flag_twse:
+            # 跑加權指數
+            cols = "`,`".join([str(i) for i in self.df_twse.columns.tolist()])
+
+            # Insert DataFrame recrds one by one.
+            for i, row in self.df_twse.iterrows():
+
+                try:
+                    sql = "INSERT INTO `{}` (`".format(self.table_name5) +cols + "`) VALUES (" + "%s,"*(len(row)-1) + "%s)"
+                    
+                    self.cursor.execute(sql, tuple(row))
+
+                    # the connection is not autocommitted by default, so we must commit to save our changes
+                    self.db.commit()
+                    
+                except Exception as err:
+                    
+                    # print(err)
+                    print(err)
+                    continue
 
 
     # 抓取PB, PE
