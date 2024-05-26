@@ -5,7 +5,6 @@ import pandas as pd
 import time
 import json
 from json import load
-import requests
 from bs4 import BeautifulSoup
 
 
@@ -230,23 +229,6 @@ class Stocks_Crawl(MD.MySQL_Database):
 
         self.ConcatData()
         
-
- 
-    # 抓取特定股票(使用者要抓的那支股票)
-    #############################################
-
-    def Get_specific_stock(self, df):
-
-        if self.stock_name != '':
-            
-            df = df[df["證券名稱"].apply(lambda x:x.replace(" ", "") ) == self.stock_name]
-
-        elif self.stock_num != '':
-
-            df["證券代號"] = df["證券代號"].apply(lambda x:x.replace("=", "").replace('"', '').replace(" ", ""))
-            df = df[df['證券代號'] == self.stock_num]
-
-        return df
     
     # 重新命名col name, 確保一致
     #############################################
@@ -330,6 +312,12 @@ class Stocks_Crawl(MD.MySQL_Database):
             
             df["漲跌(+/-)"] = df["漲跌價差"].values[0][0] if df["漲跌價差"].values[0][0] != "0" else "X"
 
+            df= df.apply(lambda s:s.astype(str).str.replace(',',''))
+
+            cols_to_numeric = ['開盤價', '最高價', '最低價', '收盤價', '漲跌價差']
+            df[cols_to_numeric] = df[cols_to_numeric].apply(pd.to_numeric, errors='coerce')
+            df[cols_to_numeric] = df[cols_to_numeric].fillna(0)
+
             # self.df_stocks = self.df_stocks.append(df, ignore_index=True)
             if not self.df_stocks.empty and not df.empty:
                 self.df_stocks = pd.concat([self.df_stocks, df], ignore_index=True)
@@ -352,6 +340,7 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             df = df[df['證券代號'].apply(lambda x: len(x) == 4)]
 
+            df= df.apply(lambda s:s.astype(str).str.replace(',',''))
             #df = self.Get_specific_stock(df)
             
             # self.df_institutional_investors = self.df_institutional_investors.append(df, ignore_index = True)
@@ -373,7 +362,12 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             df = df[df['證券代號'].apply(lambda x: len(x) == 4)]
 
-            #df = self.Get_specific_stock(df)
+            df= df.apply(lambda s:s.astype(str).str.replace(',',''))
+
+            cols_to_numeric = ['開盤價', '最高價', '最低價', '收盤價', '漲跌價差']
+            df[cols_to_numeric] = df[cols_to_numeric].apply(pd.to_numeric, errors='coerce')
+            df[cols_to_numeric] = df[cols_to_numeric].fillna(0)
+
             if not self.df_stocks.empty and not df.empty:
                 self.df_stocks = pd.concat([self.df_stocks, df], ignore_index=True)
             else : 
@@ -388,30 +382,14 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             df = df[df['證券代號'].apply(lambda x: len(x) == 4)]
 
+            df= df.apply(lambda s:s.astype(str).str.replace(',',''))
+
             #df = self.Get_specific_stock(df)
             # self.df_institutional_investors = pd.concat([self.df_institutional_investors, df], ignore_index=True)
             if not self.df_institutional_investors.empty and not df.empty:
                 self.df_institutional_investors = pd.concat([self.df_institutional_investors, df], ignore_index=True)
             else : 
                 self.df_institutional_investors = df.copy()   
-
-
-            
-
-
-    # 合併Date
-    #############################################
-
-    def ConcatData(self):
-
-        # 將index reset 以免concat出現NaN值
-        self.df_stocks.reset_index(drop=True, inplace=True)
-
-        self.df_institutional_investors.reset_index(drop=True, inplace=True)
-
-        self.df_statistics.reset_index(drop=True, inplace=True)
-
-        self.df_twse.reset_index(drop=True, inplace=True)
 
 
     def Crawl_twse(self, Date, url, url_suffix):
@@ -430,6 +408,10 @@ class Stocks_Crawl(MD.MySQL_Database):
             df_twse= df_twse.apply(lambda s:s.astype(str).str.replace("<p style ='color:green'>",''))
             df_twse= df_twse.apply(lambda s:s.astype(str).str.replace("</p>",''))
             df_twse= df_twse.apply(lambda s:s.astype(str).str.replace(',',''))
+
+            cols_to_numeric = ['價格指數值', '漲跌點數', '漲跌百分比']
+            df_twse[cols_to_numeric] = df_twse[cols_to_numeric].apply(pd.to_numeric, errors='coerce')
+            df_twse[cols_to_numeric] = df_twse[cols_to_numeric].fillna(0)
 
             if not self.df_twse.empty and not df_twse.empty:
                 self.df_twse = pd.concat([self.df_twse, df_twse], ignore_index=True)
@@ -492,6 +474,21 @@ class Stocks_Crawl(MD.MySQL_Database):
         self.df_category = df_category_list
 
 
+        # 合併Date
+    #############################################
+
+    def ConcatData(self):
+
+        # 將index reset 以免concat出現NaN值
+        self.df_stocks.reset_index(drop=True, inplace=True)
+
+        self.df_institutional_investors.reset_index(drop=True, inplace=True)
+
+        self.df_statistics.reset_index(drop=True, inplace=True)
+
+        self.df_twse.reset_index(drop=True, inplace=True)
+
+
     # 將Date存進資料庫
     #############################################
 
@@ -514,8 +511,10 @@ class Stocks_Crawl(MD.MySQL_Database):
                 
             except Exception as err:
                 
-                # print(err)
-                print("This df_stocks data already exists in this table, jumping...")
+                print(err)
+                print("個股資料")
+                print(row)
+                print("This : " + self.table_name + "data already exists")
                 continue
 
         # ============================================================================
@@ -534,8 +533,8 @@ class Stocks_Crawl(MD.MySQL_Database):
                 
             except Exception as err:
                 
-                # print(err)
-                print("This df_institutional_investors data already exists in this table, jumping...")
+                print(err)
+                print("This" + self.table_name2 + "data already exists" )
                 continue
         # ============================================================================
         cols = "`,`".join([str(i) for i in self.df_statistics.columns.tolist()])
@@ -553,8 +552,8 @@ class Stocks_Crawl(MD.MySQL_Database):
                 
             except Exception as err:
                 
-                # print(err)
-                print("This df_statistics data already exists in this table, jumping...")
+                print(err)
+                print("This" + self.table_name3 + "data already exists" )
                 continue
         # ============================================================================
 
@@ -575,8 +574,8 @@ class Stocks_Crawl(MD.MySQL_Database):
                     
                 except Exception as err:
                     
-                    # print(err)
                     print(err)
+                    print("This " + self.table_name4 + "data already exists" )
                     continue
         
         if self.Flag_twse:
@@ -596,8 +595,8 @@ class Stocks_Crawl(MD.MySQL_Database):
                     
                 except Exception as err:
                     
-                    # print(err)
                     print(err)
+                    print("This " + self.table_name5 + "data already exists" )
                     continue
 
 

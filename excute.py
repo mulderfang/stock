@@ -30,8 +30,8 @@ stocks = TS.Taiwan_Stocks( db_settings = db_settings,
                           Fetch_stock_statistics_flag = False, 
                           Flag_sub_category=False, # 不用一直開著
                           Flag_twse = True, 
-                          Flag_tpe_stocks = False, 
-                          Flag_tsw_stocks = False,  
+                          Flag_tpe_stocks = True, 
+                          Flag_tsw_stocks = True,  
                           timesleep = 5)
 
 
