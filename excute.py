@@ -23,6 +23,18 @@ db_settings = { "host": "127.0.0.1",
 # stocks = TS.Taiwan_Stocks( db_settings = db_settings, Crawl_flag = False, MySQL_flag = True,
 #                            Fetch_stock_statistics_flag = False,  timesleep = 5)
 
+#漲跌停家數測試
+# stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
+#                           Crawl_flag = True, 
+#                           MySQL_flag = True,
+#                           Fetch_stock_statistics_flag = False, 
+#                           Flag_sub_category=False, # 不用一直開著
+#                           Flag_twse = False, 
+#                           Flag_tpe_stocks = False, 
+#                           Flag_tsw_stocks = False,  
+#                           Flag_updown = True,  
+#                           timesleep = 5)
+
 
 stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
                           Crawl_flag = True, 
@@ -32,6 +44,7 @@ stocks = TS.Taiwan_Stocks( db_settings = db_settings,
                           Flag_twse = True, 
                           Flag_tpe_stocks = True, 
                           Flag_tsw_stocks = True,  
+                          Flag_updown = True,   # 計算每天漲跌停家數
                           timesleep = 5)
 
 

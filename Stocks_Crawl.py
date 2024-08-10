@@ -6,7 +6,7 @@ import time
 import json
 from json import load
 from bs4 import BeautifulSoup
-
+import re
 
 class Stocks_Crawl(MD.MySQL_Database):
     
@@ -16,6 +16,7 @@ class Stocks_Crawl(MD.MySQL_Database):
                  Flag_twse = True, 
                  Flag_tpe_stocks = True,
                  Flag_tsw_stocks = True,
+                 Flag_updown = True,
                  **kwargs):
         
         super().__init__(**kwargs)      
@@ -31,6 +32,9 @@ class Stocks_Crawl(MD.MySQL_Database):
         self.Flag_tpe_stocks = Flag_tpe_stocks
         #上市
         self.Flag_tsw_stocks = Flag_tsw_stocks
+        #漲跌幅
+        self.Flag_updown = Flag_updown
+        
 
 
         ################# 上櫃公司價格資料
@@ -97,6 +101,11 @@ class Stocks_Crawl(MD.MySQL_Database):
         self.url_twse = 'https://www.twse.com.tw/exchangeReport/MI_INDEX?reponse=csv&date='        
         self.df_twse = pd.DataFrame( data = [], 
                                     columns = ['指數名稱','價格指數值','報酬指數值','漲跌點數','漲跌百分比']) 
+        # 漲跌幅
+        self.df_updown_combined = pd.DataFrame( data = [], 
+                                    columns = ['上市上漲家數','上市漲停家數','上市下跌家數','上市跌停家數','上市持平家數','上市上漲下跌比',
+                                               '上櫃上漲家數','上櫃漲停家數', '上櫃下跌家數', '上櫃跌停家數','上櫃持平家數','上櫃上漲下跌比',
+                                               '總上漲家數','總漲停家數', '總下跌家數', '總跌停家數','總持平家數','總上漲下跌比']) 
 
         
         self.timesleep = timesleep
@@ -130,6 +139,26 @@ class Stocks_Crawl(MD.MySQL_Database):
         day = date[6:]
 
         return year+"/"+month+"/"+day
+    
+        # 定义函数来提取数值
+    def extract_values(self, row):
+        indicator = row.iloc[0]
+        values = []
+        
+        if indicator == '上漲(漲停)':
+            values.append(('上漲家數', int(row.iloc[2].split('(')[0].replace(',', ''))))
+            values.append(('漲停家數', int(row.iloc[2].split('(')[1].strip(')'))))
+        elif indicator == '下跌(跌停)':
+            values.append(('下跌家數', int(row.iloc[2].split('(')[0].replace(',', ''))))
+            values.append(('跌停家數', int(row.iloc[2].split('(')[1].strip(')'))))
+        elif indicator == '持平':
+            values.append(('持平家數', int(row.iloc[2].replace(',', ''))))
+        elif indicator == '未成交':
+            values.append(('未成交家數', int(row.iloc[2].replace(',', ''))))
+        elif indicator == '無比價':
+            values.append(('無比價家數', int(row.iloc[2].replace(',', ''))))
+
+        return values
 
     # CRAWLING
     #############################################
@@ -206,7 +235,9 @@ class Stocks_Crawl(MD.MySQL_Database):
 
                 if self.Flag_twse:
                     self.Crawl_twse(Date = date, url = self.url_twse, url_suffix='&type=ALLBUT0999')
-                
+
+                if self.Flag_updown:
+                    self.Crawl_updown( Date = date,  url = self.url_twse, url_suffix='&type=ALLBUT0999')                
 
             except Exception as err:
                 
@@ -279,14 +310,14 @@ class Stocks_Crawl(MD.MySQL_Database):
     #############################################
 
     def Crawl_method(self, url, date, Date, url_suffix='', Flag_tpex_stocks=False, Flag_tpex_insti_inv=False,
-                     Flag_stocks=False, Flag_insti_inv=False, Flag_twse=False):
+                     Flag_stocks=False, Flag_insti_inv=False, Flag_twse=False, Flag_updown=False):
         
         # 下載股價
         r = requests.get( url + date + url_suffix)
 
         # 整理資料，變成表格
         
-        if not Flag_tpex_stocks and not Flag_tpex_insti_inv and not Flag_stocks and not Flag_insti_inv and not Flag_twse:
+        if not Flag_tpex_stocks and not Flag_tpex_insti_inv and not Flag_stocks and not Flag_insti_inv and not Flag_twse and not Flag_updown:
             
             print("Error...Crawling nothing, please set the flags right")
             return 0
@@ -391,7 +422,7 @@ class Stocks_Crawl(MD.MySQL_Database):
             else : 
                 self.df_institutional_investors = df.copy()   
 
-
+    # 爬大盤指數
     def Crawl_twse(self, Date, url, url_suffix):
         data = requests.get(url+Date+url_suffix, timeout=10)
         if data.text =='':
@@ -419,6 +450,97 @@ class Stocks_Crawl(MD.MySQL_Database):
                 self.df_twse = df_twse.copy()   
         else:
             print(Date + 'df_twse data not found' )
+
+    # 爬漲跌停家數
+    def Crawl_updown(self,Date, url, url_suffix):
+        ROC_Date = self.date_changer(Date)
+        # 先爬上市
+        data = requests.get(url+Date+url_suffix, timeout=10)
+        if data.text =='':
+            return pd.DataFrame()
+        jsondata = json.loads(data.text)
+        if jsondata['stat'] == 'OK':
+
+            df_twse_ud = pd.DataFrame(jsondata['data8'])
+
+            # 提取所有数值
+            extracted_data = []
+            for idx, row in df_twse_ud.iterrows():
+                
+                extracted_data.extend(self.extract_values(row))
+
+            df_twse_updown = pd.DataFrame(extracted_data, columns=['指標', '數值'])
+
+            # 轉置 
+            df_twse_updown = df_twse_updown.T
+            df_twse_updown.columns = df_twse_updown.iloc[0]
+            df_twse_updown = df_twse_updown[1:]
+            df_twse_updown.drop(['未成交家數', '無比價家數'], axis=1, inplace=True)
+            df_twse_updown.rename(columns={'上漲家數': '上市上漲家數','漲停家數': '上市漲停家數','下跌家數': '上市下跌家數','跌停家數': '上市跌停家數','持平家數': '上市持平家數'}, inplace=True)
+            df_twse_updown['Date'] = Date
+            df_twse_updown
+
+            # 再爬上櫃 網址不同寫死
+            url = "https://www.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw&o=csv&d="
+
+            # 下載股價
+            r = requests.get(url + ROC_Date) #要用ROC的處理
+
+            data = []
+            for line in StringIO(r.text):
+                try:
+                    data.append(line.split(','))
+                except Exception as e:
+                    print(f"Error processing line: {line}, error: {e}")
+
+            df = pd.DataFrame(data)
+            extracted_data = []
+
+            for i in range(len(df)):
+                df_col = df.iloc[i]
+                # 清理数据，移除 \r\n 和多余的空格
+                cleaned_data = df_col.dropna().str.replace('\r\n', '').str.strip()
+
+                # 提取数值并创建 DataFrame
+
+                for item in cleaned_data:
+                    match1 = re.match(r'"(上漲家數|漲停家數|下跌家數|跌停家數|平盤家數):\s*(\d+)"', item)
+                    if match1:
+                        indicator = match1.group(1)
+                        value = int(match1.group(2))
+                        extracted_data.append((indicator, value))
+
+                df_tpex_updown = pd.DataFrame(extracted_data, columns=['指標', '數值'])
+            df_tpex_updown
+
+            # 轉置 
+            df_tpex_updown = df_tpex_updown.T
+            df_tpex_updown.columns = df_tpex_updown.iloc[0]
+            df_tpex_updown = df_tpex_updown[1:]
+            df_tpex_updown.rename(columns={'上漲家數': '上櫃上漲家數','漲停家數': '上櫃漲停家數','下跌家數': '上櫃下跌家數','跌停家數': '上櫃跌停家數','平盤家數': '上櫃持平家數'}, inplace=True)
+            df_tpex_updown['Date'] = Date
+
+            # 保留索引水平合并
+            df_updown_combined = pd.merge(df_tpex_updown, df_twse_updown, on='Date')
+
+            df_updown_combined['總上漲家數'] = df_tpex_updown['上櫃上漲家數'].iloc[0] + df_twse_updown['上市上漲家數'].iloc[0] 
+            df_updown_combined['總下跌家數'] = df_tpex_updown['上櫃下跌家數'].iloc[0] + df_twse_updown['上市下跌家數'].iloc[0] 
+            df_updown_combined['總漲停家數'] = df_tpex_updown['上櫃漲停家數'].iloc[0] + df_twse_updown['上市漲停家數'].iloc[0] 
+            df_updown_combined['總跌停家數'] = df_tpex_updown['上櫃跌停家數'].iloc[0] + df_twse_updown['上市跌停家數'].iloc[0] 
+            df_updown_combined['總持平家數'] = df_tpex_updown['上櫃持平家數'].iloc[0] + df_twse_updown['上市持平家數'].iloc[0] 
+
+            # 做多 1.35 ~ 0.6 做空
+            df_updown_combined['上櫃上漲下跌比']  = round(df_tpex_updown['上櫃上漲家數'].iloc[0] / df_tpex_updown['上櫃下跌家數'].iloc[0], 2 )
+            df_updown_combined['上市上漲下跌比']  = round(df_twse_updown['上市上漲家數'].iloc[0] / df_twse_updown['上市下跌家數'].iloc[0], 2 )
+            df_updown_combined['總上漲下跌比']    = round(df_updown_combined['總上漲家數'].iloc[0]  / df_updown_combined['總下跌家數'].iloc[0], 2 )
+
+            if not self.df_updown_combined.empty and not df_updown_combined.empty:
+                self.df_updown_combined = pd.concat([self.df_updown_combined, df_updown_combined], ignore_index=True)
+            else : 
+                self.df_updown_combined = df_updown_combined.copy()   
+        else:
+            print(Date + 'df_updown_combined data not found' )
+
 
     def sub_category_list(self, url):
 
@@ -598,6 +720,27 @@ class Stocks_Crawl(MD.MySQL_Database):
                     print(err)
                     print("This " + self.table_name5 + "data already exists" )
                     continue
+
+        if self.Flag_updown:
+            # 跑漲跌停家數
+            cols = "`,`".join([str(i) for i in self.df_updown_combined.columns.tolist()])
+
+            # Insert DataFrame recrds one by one.
+            for i, row in self.df_updown_combined.iterrows():
+
+                try:
+                    sql = "INSERT INTO `{}` (`".format(self.table_name6) +cols + "`) VALUES (" + "%s,"*(len(row)-1) + "%s)"
+                    
+                    self.cursor.execute(sql, tuple(row))
+
+                    # the connection is not autocommitted by default, so we must commit to save our changes
+                    self.db.commit()
+                    
+                except Exception as err:
+                    
+                    print(err)
+                    print("This " + self.table_name6 + "data already exists" )
+                    continue                
 
 
     # 抓取PB, PE
