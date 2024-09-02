@@ -35,7 +35,7 @@ db_settings = { "host": "127.0.0.1",
 #                           Flag_updown = True,  
 #                           timesleep = 5)
 
-
+# 一般使用參數
 stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
                           Crawl_flag = True, 
                           MySQL_flag = True,
@@ -48,3 +48,14 @@ stocks = TS.Taiwan_Stocks( db_settings = db_settings,
                           timesleep = 5)
 
 
+# 只跑大盤數據
+# stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
+#                           Crawl_flag = True, 
+#                           MySQL_flag = True,
+#                           Fetch_stock_statistics_flag = False, 
+#                           Flag_sub_category=False, # 不用一直開著
+#                           Flag_twse = True, 
+#                           Flag_tpe_stocks = False, 
+#                           Flag_tsw_stocks = False,  
+#                           Flag_updown = False,  
+#                           timesleep = 5)  
