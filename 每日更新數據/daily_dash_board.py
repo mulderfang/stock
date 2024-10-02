@@ -467,12 +467,15 @@ def short_term_data(days):
     # 短波強勢股
     stock_date_list = stock_df_raw[(stock_df_raw['證券代號'] == '2330') & (stock_df_raw['Date']>= start_date ) ]['Date']
 
-    collected_data = pd.DataFrame(columns=['Date','證券代號', '證券名稱', '收盤價','成交量', 'RS20_rank', 'RS60_rank', 'RS240_rank','賣出日','賣出開盤價','賣出日RS60'])
+    collected_data = pd.DataFrame(columns=['Date','證券代號', '證券名稱', '收盤價','成交量', 'RS20_rank', 'RS60_rank', 'RS240_rank','賣出日','賣出開盤價','價差百分比','賣出日RS60'])
+    
+    # 檢查前波高低點差距
+    backday = 120
 
     for day in stock_date_list:
 
             stock_df_today = stock_df_raw[(stock_df_raw['Date'] == day) &  
-                                          (stock_df_raw['20RS_rank'] > 58) & 
+                                          (stock_df_raw['20RS_rank'] > 52) & 
                                           (stock_df_raw['60RS_rank'] > 90) & 
                                           (stock_df_raw['240RS_rank'] > 90) & 
                                           (stock_df_raw['收盤價'] > stock_df_raw['10MA'] )].copy() 
@@ -485,42 +488,54 @@ def short_term_data(days):
                     # 過去
                     rs20_rank_his = stock_his['20RS_rank'].iloc[-1]
 
-                    today_close = stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )]['收盤價'].iloc[0]
-                    stock_name = stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )]['證券名稱'].iloc[0]
-                    stock_volume = stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )]['成交筆數'].iloc[0]
-                    RS20_rank= stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )]['20RS_rank'].iloc[0]
-                    RS60_rank = stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )]['60RS_rank'].iloc[0]
-                    RS240_rank = stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )]['240RS_rank'].iloc[0]
+                    stock_today = stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )].iloc[0]
+
+                    today_close = stock_today['收盤價']
+                    stock_name = stock_today['證券名稱']
+                    stock_volume = stock_today['成交筆數']
+                    RS20_rank= stock_today['20RS_rank']
+                    RS60_rank = stock_today['60RS_rank']
+                    RS240_rank = stock_today['240RS_rank']
 
                     sell_date = '尚未'
                     sell_open_price =0
                     sell_RS60_rank = 0
-    
+                    diff = 0
                     stock_tacker = stock_df_raw[(stock_df_raw['Date'] > day) & (stock_df_raw['Date'] <= today_str) & (stock_df_raw['證券代號'] == stock_id ) & (stock_df_raw['60RS_rank'] < 88 )]
                     if not stock_tacker.empty:
                            sell_date = stock_tacker['Date'].iloc[0]
                            sell_open_price = stock_tacker['開盤價'].iloc[0]
                            sell_RS60_rank = stock_tacker['60RS_rank'].iloc[0]
-
+                           diff = round( 100*((sell_open_price/today_close)-1) , 2)
                     if( (rs20_rank_his < 15) & (stock_volume > 1000)):
+                            
+                        # 檢查前波高低點
+                        df_his_min_price = stock_df_raw[(stock_df_raw['證券代號'] == str(stock_id)) & (stock_df_raw['Date'] < day )]['收盤價'].rolling(backday).min().iloc[-1]
+                        df_his_max_price = stock_df_raw[(stock_df_raw['證券代號'] == str(stock_id)) & (stock_df_raw['Date'] < day )]['收盤價'].rolling(backday).max().iloc[-1]
+                        
+                        if (df_his_min_price != 0) and (df_his_max_price != 0):
 
-                            result_df = pd.DataFrame({
-                                    'Date': [day],
-                                    '證券代號': [stock_id],
-                                    '證券名稱': [stock_name],
-                                    '收盤價': [today_close],
-                                    '成交量': [stock_volume],
-                                    'RS20_rank': [RS20_rank],
-                                    'RS60_rank': [RS60_rank],
-                                    'RS240_rank': [RS240_rank],
-                                    '賣出日': [str(sell_date)],
-                                    '賣出開盤價': [sell_open_price],
-                                    '賣出日RS60': [sell_RS60_rank]
-                                    })
-                            # 删除全为NA的列，避免可能出现的警告
-                            result_df.dropna(axis=1, how='all', inplace=True)
-                            if not result_df.empty:
-                                    collected_data = pd.concat([collected_data, result_df], ignore_index=True)
+                                if (today_close / df_his_min_price > 3) or (df_his_max_price / today_close > 1.25):
+                                        continue
+
+                        result_df = pd.DataFrame({
+                                'Date': [day],
+                                '證券代號': [stock_id],
+                                '證券名稱': [stock_name],
+                                '收盤價': [today_close],
+                                '成交量': [stock_volume],
+                                'RS20_rank': [RS20_rank],
+                                'RS60_rank': [RS60_rank],
+                                'RS240_rank': [RS240_rank],
+                                '賣出日': [str(sell_date)],
+                                '賣出開盤價': [sell_open_price],
+                                '價差百分比': [diff],
+                                '賣出日RS60': [sell_RS60_rank]
+                                })
+                        # 删除全为NA的列，避免可能出现的警告
+                        result_df.dropna(axis=1, how='all', inplace=True)
+                        if not result_df.empty:
+                                collected_data = pd.concat([collected_data, result_df], ignore_index=True)
 
     return collected_data
 
@@ -657,7 +672,7 @@ data_table5 = DataTable(source=stats_source5, columns=stat_columns5, width=1000,
 short_term_stock_tif= Div(text=f"""
 <h2>短期強勢股 跌破88出</h2>
 <br>
-<p style="font-size:16px; color:{color};">{"篩到股票隔天收盤買，買完之後放到RS60 RANK跌破88之後隔天開盤屌賣"}</p>
+<p style="font-size:16px; color:{color};">{"篩到股票隔天收盤買，RS20 RANK要大於52，買完之後放到RS60 RANK跌破88之後隔天開盤屌賣"}</p>
 """, width=400)
 
 short_term_df['Date'] = short_term_df['Date'].astype(str)

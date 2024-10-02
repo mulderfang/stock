@@ -85,3 +85,18 @@ elif (switch == '3'):
                             Flag_tx = True,
                             Flag_tif = True,
                             timesleep = 5)  
+    
+elif (switch == '4'):
+    # 只跑台指跟小外資數據
+    stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
+                            Crawl_flag = True, 
+                            MySQL_flag = True,
+                            Fetch_stock_statistics_flag = False, 
+                            Flag_sub_category=True, # 不用一直開著
+                            Flag_twse = False, 
+                            Flag_tpe_stocks = False, 
+                            Flag_tsw_stocks = False,  
+                            Flag_updown = False,  
+                            Flag_tx = False,
+                            Flag_tif = False,
+                            timesleep = 5)  
