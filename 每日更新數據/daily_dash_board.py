@@ -561,7 +561,7 @@ merged_df = process_stock_data(two_years_ago_str, today_str)
 new_stock_df = new_stock_data(30)
 
 # 調用函數 查最近短期強勢股
-short_term_df = short_term_data(20)
+short_term_df = short_term_data(40)
 
 # 文字說明
 
