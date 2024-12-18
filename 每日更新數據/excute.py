@@ -54,6 +54,7 @@ if (switch == '1'):
                             Flag_updown = True,   # 計算每天漲跌停家數
                             Flag_tx = True,
                             Flag_tif = True, 
+                            Flag_pc_ratio = True, 
                             timesleep = 5)
 
 elif (switch == '2'):
@@ -87,7 +88,7 @@ elif (switch == '3'):
                             timesleep = 5)  
     
 elif (switch == '4'):
-    # 只跑台指跟小外資數據
+    # 只跑產業類別
     stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
                             Crawl_flag = True, 
                             MySQL_flag = True,
@@ -114,4 +115,55 @@ elif (switch == '5'):
                             Flag_updown = False,   # 計算每天漲跌停家數
                             Flag_tx = False,
                             Flag_tif = False, 
+                            timesleep = 5)
+    
+
+elif (switch == '6'):
+    # 只跑 PUT CALL RATIO
+    stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
+                            Crawl_flag = True, 
+                            MySQL_flag = True,
+                            Fetch_stock_statistics_flag = False, 
+                            
+                            Flag_sub_category=False, # 不用一直開著
+                            Flag_twse = False, 
+                            Flag_tpe_stocks = False, 
+                            Flag_tsw_stocks = False,  
+                            Flag_updown = False,   # 計算每天漲跌停家數
+                            Flag_tx = False,
+                            Flag_tif = False, 
+                            Flag_pc_ratio = True, 
+                            timesleep = 5)
+    
+elif (switch == '7'):
+    # 只跑 大盤
+    stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
+                            Crawl_flag = True, 
+                            MySQL_flag = True,
+                            Fetch_stock_statistics_flag = False, 
+                            
+                            Flag_sub_category=False, # 不用一直開著
+                            Flag_twse = True, 
+                            Flag_tpe_stocks = False, 
+                            Flag_tsw_stocks = False,  
+                            Flag_updown = False,   # 計算每天漲跌停家數
+                            Flag_tx = False,
+                            Flag_tif = False, 
+                            Flag_pc_ratio = False, 
+                            timesleep = 5)
+elif (switch == '8'):
+    # 只跑 每天上漲下跌家數
+    stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
+                            Crawl_flag = True, 
+                            MySQL_flag = True,
+                            Fetch_stock_statistics_flag = False, 
+                            
+                            Flag_sub_category=False, # 不用一直開著
+                            Flag_twse = False, 
+                            Flag_tpe_stocks = False, 
+                            Flag_tsw_stocks = False,  
+                            Flag_updown = True,   # 計算每天漲跌停家數
+                            Flag_tx = False,
+                            Flag_tif = False, 
+                            Flag_pc_ratio = False, 
                             timesleep = 5)

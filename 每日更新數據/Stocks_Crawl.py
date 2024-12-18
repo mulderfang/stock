@@ -19,6 +19,7 @@ class Stocks_Crawl(MD.MySQL_Database):
                  Flag_updown = True,
                  Flag_tx = True,
                  Flag_tif = True,
+                 Flag_pc_ratio = True,
                  **kwargs):
         
         super().__init__(**kwargs)      
@@ -40,10 +41,11 @@ class Stocks_Crawl(MD.MySQL_Database):
         self.Flag_tx= Flag_tx
         #法人留倉口點數
         self.Flag_tif= Flag_tif       
-
+        #Put call ratio
+        self.Flag_pc_ratio= Flag_pc_ratio       
 
         ################# 上櫃公司價格資料
-        self.url_tpex_stock = "http://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_download.php?l=zh-tw&d="
+        self.url_tpex_stock = "http://wwwov.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_download.php?l=zh-tw&d="
         # self.tpex_df_stocks = pd.DataFrame( data = [], 
         #                                     columns = ['Date', '證券代號', '證券名稱', 
         #                                                '成交股數', '成交筆數', 
@@ -53,7 +55,7 @@ class Stocks_Crawl(MD.MySQL_Database):
         #                                                '漲跌價差' ])
 
         ################# 上櫃公司法人買賣資料
-        self.url_tpex_df_institutional_investors = "https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=csv&se=EW&t=D&d="
+        self.url_tpex_df_institutional_investors = "https://wwwov.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=csv&se=EW&t=D&d="
         # self.tpex_df_institutional_investors = pd.DataFrame( data = [], 
         #                                                      columns = ['證券代號', '證券名稱', 
         #                                                                 '外陸資買進股數(不含外資自營商)', 
@@ -117,12 +119,18 @@ class Stocks_Crawl(MD.MySQL_Database):
 
         self.daily_tx_data = pd.DataFrame( data = [], 
                                         columns = ['契約','到期月份','開盤價','最高價','最低價','最後成交價','一般交易時段成交量'])         
-
+        # 跑法人留倉口數    
         self.url_tif_top5 = 'https://www.taifex.com.tw/cht/3/largeTraderFutQry'  
         self.url_tif_inv = 'https://www.taifex.com.tw/cht/3/futContractsDate'  
 
         self.daily_tif_investors_data = pd.DataFrame( data = [], 
                                         columns = ['自營未平倉餘額口數','自營未平倉餘額金額','投信未平倉餘額口數','投信未平倉餘額金額','外資未平倉餘額口數','外資未平倉餘額金額','前五大交易人合計'])      
+
+       # 跑Put call ratio    
+        self.url_pc_ratio = 'https://www.taifex.com.tw/cht/3/pcRatio'  
+
+        self.daily_pc_ratio_data = pd.DataFrame( data = [], 
+                                        columns = ['賣權成交量','買權成交量','買賣權成交量比率','賣權未平倉量','買權未平倉量','買賣權未平倉量比率'])      
 
         self.timesleep = timesleep
         
@@ -272,6 +280,11 @@ class Stocks_Crawl(MD.MySQL_Database):
                     AD_era_date = self.date_changer_ad(date)
                     self.Crawl_tif(Date = AD_era_date, url_top5 = self.url_tif_top5 ,url_inv = self.url_tif_inv)        
 
+                # 跑put call ratio
+                if self.Flag_pc_ratio:
+                    AD_era_date = self.date_changer_ad(date)
+                    self.Crawl_pc_ratio(Date = AD_era_date, url = self.url_pc_ratio)    
+
             except Exception as err:
                 
                 if type(err) == ValueError:
@@ -343,14 +356,14 @@ class Stocks_Crawl(MD.MySQL_Database):
     #############################################
 
     def Crawl_method(self, url, date, Date, url_suffix='', Flag_tpex_stocks=False, Flag_tpex_insti_inv=False,
-                     Flag_stocks=False, Flag_insti_inv=False, Flag_twse=False, Flag_updown=False, Flag_tx = False, Flag_tif = False):
+                     Flag_stocks=False, Flag_insti_inv=False, Flag_twse=False, Flag_updown=False, Flag_tx = False, Flag_tif = False, Flag_pc_ratio = False):
         
         # 下載股價
         r = requests.get( url + date + url_suffix)
 
         # 整理資料，變成表格
         
-        if not Flag_tpex_stocks and not Flag_tpex_insti_inv and not Flag_stocks and not Flag_insti_inv and not Flag_twse and not Flag_updown and not Flag_tx and not Flag_tif:
+        if not Flag_tpex_stocks and not Flag_tpex_insti_inv and not Flag_stocks and not Flag_insti_inv and not Flag_twse and not Flag_updown and not Flag_tx and not Flag_tif and not Flag_pc_ratio :
             
             print("Error...Crawling nothing, please set the flags right")
             return 0
@@ -464,7 +477,7 @@ class Stocks_Crawl(MD.MySQL_Database):
         if jsondata['stat'] == 'OK':
 
             # 存加權指數table
-            df_twse = pd.DataFrame(jsondata['data1']).drop(5, axis=1) 
+            df_twse = pd.DataFrame(jsondata['tables'][0]['data']).drop(5, axis=1) 
             df_twse.columns = ['指數名稱','價格指數值','報酬指數值','漲跌點數','漲跌百分比']
             df_twse= df_twse.dropna(axis=1,how='all').dropna(axis=0,how='all')
             df_twse['Date']=Date
@@ -636,6 +649,62 @@ class Stocks_Crawl(MD.MySQL_Database):
             print(f"TXF請求失敗，狀態碼：{response.status_code}")
    
 
+    # 跑 選擇權 PC RATIO
+    def Crawl_pc_ratio(self, Date, url):
+
+        # POST 表單數據
+        payload_pc_ratio = {
+            'queryStartDate': Date,     # 查詢日期，格式為 YYYYMMDD
+            'queryEndDate': Date       # 查詢日期，格式為 YYYYMMDD
+        }
+        
+        # 發送 POST 請求
+        response = requests.post(url, data=payload_pc_ratio, timeout=10)
+        
+        # 確認請求是否成功
+        if response.status_code == 200:
+            # 解析 HTML 結果
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 提取目標表格
+            table = soup.find('table', class_='table_f')
+
+            if table:
+                # 解析表格內容
+                rows = []
+                for row in table.find_all('tr')[1:]:  # 跳過標題行
+                    cols = row.find_all('td')
+                    cols = [col.text.strip() for col in cols]
+                    rows.append(cols)
+                if(len(rows) > 0):
+                    daily_pc_ratio_data = pd.DataFrame({
+                        'Date': [Date], 
+                        '賣權成交量': [rows[0][1].replace(',', '')],
+                        '買權成交量': [rows[0][2].replace(',', '')],
+                        '買賣權成交量比率': [rows[0][3]],
+                        '賣權未平倉量': [rows[0][4].replace(',', '')],
+                        '買權未平倉量': [rows[0][5].replace(',', '')],
+                        '買賣權未平倉量比率': [rows[0][6]]
+                    })
+                    
+                    cols_to_numeric = ['賣權成交量', '買權成交量', '買賣權成交量比率', '賣權未平倉量','買權未平倉量','買賣權未平倉量比率']
+                    daily_pc_ratio_data[cols_to_numeric].apply(pd.to_numeric, errors='coerce')
+                    daily_pc_ratio_data[cols_to_numeric] = daily_pc_ratio_data[cols_to_numeric].fillna(0)
+
+                    if not self.daily_pc_ratio_data.empty and not daily_pc_ratio_data.empty:
+                        self.daily_pc_ratio_data = pd.concat([self.daily_pc_ratio_data, daily_pc_ratio_data], ignore_index=True)
+                    else : 
+                        self.daily_pc_ratio_data = daily_pc_ratio_data.copy()  
+                else:
+                    print(Date + ' put call ratio data not found' ) 
+
+            else:
+                print(Date + ' put call ratio data not found' )
+
+        else:
+            print(f"put call ratio請求失敗，狀態碼：{response.status_code}")
+
+
     # 爬漲跌停家數
     def Crawl_updown(self,Date, url, url_suffix):
         ROC_Date = self.date_changer(Date)
@@ -646,7 +715,7 @@ class Stocks_Crawl(MD.MySQL_Database):
         jsondata = json.loads(data.text)
         if jsondata['stat'] == 'OK':
 
-            df_twse_ud = pd.DataFrame(jsondata['data8'])
+            df_twse_ud = pd.DataFrame(jsondata['tables'][7]['data'])
 
             # 提取所有数值
             extracted_data = []
@@ -666,7 +735,7 @@ class Stocks_Crawl(MD.MySQL_Database):
             df_twse_updown
 
             # 再爬上櫃 網址不同寫死
-            url = "https://www.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw&o=csv&d="
+            url = "https://wwwov.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw&o=csv&d="
 
             # 下載股價
             r = requests.get(url + ROC_Date) #要用ROC的處理
@@ -969,6 +1038,27 @@ class Stocks_Crawl(MD.MySQL_Database):
                     print("This " + self.table_name8 + " data already exists" )
                     continue    
 
+        if self.Flag_pc_ratio:
+            # 爬蟲選擇權 put call ratio
+            cols = "`,`".join([str(i) for i in self.daily_pc_ratio_data.columns.tolist()])
+
+            # Insert DataFrame recrds one by one.
+            for i, row in self.daily_pc_ratio_data.iterrows():
+
+                try:
+                    sql = "INSERT INTO `{}` (`".format(self.table_name9) +cols + "`) VALUES (" + "%s,"*(len(row)-1) + "%s)"
+                    
+                    self.cursor.execute(sql, tuple(row))
+
+                    # the connection is not autocommitted by default, so we must commit to save our changes
+                    self.db.commit()
+                    
+                except Exception as err:
+                    
+                    print(err)
+                    print("This " + self.table_name9 + " data already exists" )
+                    continue    
+
     # 抓取PB, PE
     #############################################
 
@@ -983,7 +1073,7 @@ class Stocks_Crawl(MD.MySQL_Database):
 
         if self.Flag_tpe_stocks:
             
-            url = "https://www.tpex.org.tw/web/stock/aftertrading/peratio_analysis/pera_download.php?l=zh-tw&d="+ROC_era_date+"&s=0,asc,0"
+            url = "https://wwwov.tpex.org.tw/web/stock/aftertrading/peratio_analysis/pera_download.php?l=zh-tw&d="+ROC_era_date+"&s=0,asc,0"
 
             r = requests.get(url)
 

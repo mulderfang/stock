@@ -24,11 +24,11 @@ class Taiwan_Stocks(SC.Stocks_Crawl):
         self.table_name2 = "daily_insti_inv"  #每日三大法人
         self.table_name3 = "daily_statistics"  #每日本益比
         self.table_name4 = "sub_category"  #每日本益比
-        self.table_name5 = "daily_twse"  #每日本益比
+        self.table_name5 = "daily_twse"  #每日加權指數
         self.table_name6 = "daily_updown"  #每日漲跌停家數
         self.table_name7 = "daily_tx"  #每日漲跌停家數
         self.table_name8 = "daily_tif_investors"  #每日漲跌停家數
-
+        self.table_name9 = "daily_pc_ratio"  #每日漲跌停家數
 
         self.dates = []
         self.Stocks_settings()

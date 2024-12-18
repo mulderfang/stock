@@ -369,6 +369,8 @@ def process_stock_data(one_year_ago_str: str, today_str: str):
     tx_df_raw['20MA'] = round(tx_df_raw['最後成交價'].rolling(20).mean(),2)
     tx_df_raw['60MA'] = round(tx_df_raw['最後成交價'].rolling(60).mean(),2)
     tx_df_raw['240MA'] = round(tx_df_raw['最後成交價'].rolling(240).mean(),2)
+    tx_df_raw['10MA_Boolean'] = tx_df_raw['最後成交價'] > tx_df_raw['10MA']
+    tx_df_raw['60MA_Boolean'] = tx_df_raw['最後成交價'] > tx_df_raw['60MA']
 
     # 填充缺失值
     tx_df_raw = tx_df_raw.fillna(0)
@@ -467,7 +469,7 @@ def short_term_data(days):
     # 短波強勢股
     stock_date_list = stock_df_raw[(stock_df_raw['證券代號'] == '2330') & (stock_df_raw['Date']>= start_date ) ]['Date']
 
-    collected_data = pd.DataFrame(columns=['Date','證券代號', '證券名稱', '收盤價','成交量', 'RS20_rank', 'RS60_rank', 'RS240_rank','賣出日','賣出開盤價','價差百分比','賣出日RS60'])
+    collected_data = pd.DataFrame(columns=['Date','證券代號', '證券名稱', '收盤價','成交量', 'RS20_rank', 'RS60_rank', 'RS240_rank','賣出日','目前持有天數','狀態','賣出開盤價','賣出收盤價','價差百分比','賣出日RS20','賣出日RS60'])
     
     # 檢查前波高低點差距
     backday = 120
@@ -484,30 +486,57 @@ def short_term_data(days):
             for stock_id in stock_id_list:
 
                     # 有day 跟 stock_id
+                    # 有可能遇到減資或種種原因暫停交易
                     stock_his = stock_df_raw[(stock_df_raw['Date'] < day) & (stock_df_raw['證券代號'] == stock_id )]
                     # 過去
+                    if( len(stock_his) == 0):
+                         continue
                     rs20_rank_his = stock_his['20RS_rank'].iloc[-1]
-
-                    stock_today = stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )].iloc[0]
-
+                    
+                    stock_today_list = stock_df_raw[(stock_df_raw['Date'] == day) & (stock_df_raw['證券代號'] == stock_id )]
+                    if( len(stock_today_list) == 0):
+                         continue
+                    
+                    stock_today = stock_today_list.iloc[0]
                     today_close = stock_today['收盤價']
+                    today_open = stock_today['開盤價']
                     stock_name = stock_today['證券名稱']
                     stock_volume = stock_today['成交筆數']
                     RS20_rank= stock_today['20RS_rank']
                     RS60_rank = stock_today['60RS_rank']
                     RS240_rank = stock_today['240RS_rank']
 
+
+                    # 確認量價關係
+                    stock_bf = stock_df_raw[(stock_df_raw['Date'] <= day) &  (stock_df_raw['證券代號'] == stock_id)].copy() 
+                    VOL =   stock_bf['成交筆數'].iloc[-1] 
+                    VOL20 = stock_bf['成交筆數'].rolling(20).mean().iloc[-1]
+                    if(VOL > VOL20 ):
+                        continue
+
                     sell_date = '尚未'
-                    sell_open_price =0
+                    # 大於22就寫22
+                    hold_day = min(len(stock_df_raw[(stock_df_raw['Date'] > day) & 
+                                 (stock_df_raw['Date'] <= today_str) & 
+                                 (stock_df_raw['證券代號'] == stock_id)]), 22)
+                    
+                    hold_type = "持有中" if hold_day < 22 else "停利"
+
+                    sell_open_price =0 # 停損
+                    sell_close_price =0 # 停利
                     sell_RS60_rank = 0
                     diff = 0
-                    stock_tacker = stock_df_raw[(stock_df_raw['Date'] > day) & (stock_df_raw['Date'] <= today_str) & (stock_df_raw['證券代號'] == stock_id ) & (stock_df_raw['60RS_rank'] < 88 )]
+                    stock_tacker = stock_df_raw[(stock_df_raw['Date'] > day) & (stock_df_raw['Date'] <= today_str) & (stock_df_raw['證券代號'] == stock_id ) & ((stock_df_raw['60RS_rank'] < 80)  | (stock_df_raw['20RS_rank'] < 20))]
                     if not stock_tacker.empty:
                            sell_date = stock_tacker['Date'].iloc[0]
                            sell_open_price = stock_tacker['開盤價'].iloc[0]
                            sell_RS60_rank = stock_tacker['60RS_rank'].iloc[0]
+                           sell_RS20_rank = stock_tacker['20RS_rank'].iloc[0]
                            diff = round( 100*((sell_open_price/today_close)-1) , 2)
-                    if( (rs20_rank_his < 15) & (stock_volume > 1000)):
+                           hold_day = len(stock_tacker)
+                           hold_type = '停損'
+
+                    if( (rs20_rank_his < 15) & (stock_volume > 1000) & (today_open <= today_close)):
                             
                         # 檢查前波高低點
                         df_his_min_price = stock_df_raw[(stock_df_raw['證券代號'] == str(stock_id)) & (stock_df_raw['Date'] < day )]['收盤價'].rolling(backday).min().iloc[-1]
@@ -517,6 +546,13 @@ def short_term_data(days):
 
                                 if (today_close / df_his_min_price > 3) or (df_his_max_price / today_close > 1.25):
                                         continue
+                        
+                        # 判斷停利點
+                        stock_tp = stock_df_raw[(stock_df_raw['Date'] > day) & (stock_df_raw['Date'] <= today_str) & (stock_df_raw['證券代號'] == stock_id )]
+                        if( (sell_date == '尚未') &  (len(stock_tp) > 21)):
+                             sell_close_price = stock_tp['收盤價'].iloc[21]
+                             sell_date = stock_tp['Date'].iloc[21]
+                             diff = round( 100*((sell_close_price/today_close)-1) , 2)
 
                         result_df = pd.DataFrame({
                                 'Date': [day],
@@ -528,8 +564,12 @@ def short_term_data(days):
                                 'RS60_rank': [RS60_rank],
                                 'RS240_rank': [RS240_rank],
                                 '賣出日': [str(sell_date)],
+                                '目前持有天數' : [hold_day],
+                                '狀態':[hold_type],
                                 '賣出開盤價': [sell_open_price],
+                                '賣出收盤價': [sell_close_price],
                                 '價差百分比': [diff],
+                                '賣出日RS20': [sell_RS20_rank],
                                 '賣出日RS60': [sell_RS60_rank]
                                 })
                         # 删除全为NA的列，避免可能出现的警告
@@ -580,7 +620,7 @@ source = ColumnDataSource(data=data)
 
 # 看最近的漲跌家數
 twse_title = Div(text="<h2>看最近的每天漲跌停家數</h2>", width=400)
-twse_updown_5day =  twse_updown_raw.head(10)[['Date','總上漲家數','總漲停家數', '總下跌家數', '總跌停家數', '總持平家數', '總上漲下跌比']]
+twse_updown_5day =  twse_updown_raw.head(30)[['Date','總上漲家數','總漲停家數', '總下跌家數', '總跌停家數', '總持平家數', '總上漲下跌比']]
 twse_updown_5day['Date'] = twse_updown_5day['Date'].astype(str)
 stats_source2 = ColumnDataSource(data=twse_updown_5day)
 stat_columns2 = [TableColumn(field=col, title=col) for col in twse_updown_5day.columns]
@@ -598,7 +638,7 @@ MA60_count_26_date = str(MA_count_list[MA_count_list['MA60_count'] < 26]['date']
 # 已持有日期
 hold_day = len(MA_count_list[MA_count_list['date'] > MA60_count_26_date])
 
-MA_count_list_5day =  MA_count_list.head(10)
+MA_count_list_5day =  MA_count_list.head(30)
 today_count = MA_count_list_5day['MA60_count'].iloc[0]
 # 確認今天的盤勢狀態
 if today_count > 26:
@@ -621,14 +661,16 @@ data_table3 = DataTable(source=stats_source3, columns=stat_columns3, width=1000,
 tif_investors_title = Div(text="""
 <h2>Daily Foreign Investor Trends</h2>
 <br>
-<p style="font-size:16px;">直接看大盤十日線，十日以上買，以下賣。做空多看季線，季線以上不做空</p>
+<p style="font-size:16px;">直接看大盤十日線，站穩十日線且小外資為正，明天開盤買，收盤跌破十日線且前一日小外資為負的就賣掉。</p><br>
+<p style="font-size:16px;">做空多看季線，季線以上不做空，季線以下，收盤跌破十日線且小外資為負，隔天開盤空，收盤站上十日線且小外資翻正就回補</p>
 """, width=400)
 
-merged_df =  merged_df.head(10)[['Date','大外資','大外資變化', '小外資', '小外資變化','最後成交價','10MA','20MA','60MA']]
+merged_df =  merged_df.head(30)[['Date','大外資','大外資變化', '小外資', '小外資變化','最後成交價','10MA','20MA','60MA','10MA_Boolean','60MA_Boolean']]
 
 today_price = merged_df['最後成交價'].iloc[0]
 today_60MA = merged_df['60MA'].iloc[0]
 today_10MA = merged_df['10MA'].iloc[0]
+sf = merged_df['小外資'].iloc[0]
 
 # 確認今天的盤勢狀態
 if today_price > today_60MA:
@@ -645,6 +687,11 @@ else:
     else:
         situation_text = "今日收盤在季線之下，10日線下"
         color = "lime"
+
+if sf > 0 :
+    situation_text = situation_text + '小外資為正'
+else :
+    situation_text = situation_text + '小外資為負'
 
 # 创建 Div
 today_tif= Div(text=f"""
@@ -668,11 +715,13 @@ stats_source5 = ColumnDataSource(data=new_stock_df)
 stat_columns5 = [TableColumn(field=col, title=col) for col in new_stock_df.columns]
 data_table5 = DataTable(source=stats_source5, columns=stat_columns5, width=1000, height=350, index_position=None)
 
-# 创建 Div 短期強勢股 跌破88出
+# 创建 Div 短期強勢股 跌破80出
 short_term_stock_tif= Div(text=f"""
-<h2>短期強勢股 跌破88出</h2>
+<h2>短期強勢股 60RS 跌破80，隔天開盤出</h2>
+<h2>短期強勢股 20RS 跌破20，隔天開盤出</h2>
+<h2>不然就放到第22天收盤出</h2>
 <br>
-<p style="font-size:16px; color:{color};">{"篩到股票隔天收盤買，RS20 RANK要大於52，買完之後放到RS60 RANK跌破88之後隔天開盤屌賣"}</p>
+<p style="font-size:16px; color:{color};">{"篩到股票隔天收盤買，RS20 RANK要大於52，買完之後放到RS60 RANK跌破80之後隔天開盤屌賣"}</p>
 """, width=400)
 
 short_term_df['Date'] = short_term_df['Date'].astype(str)
@@ -701,7 +750,7 @@ tools = "pan, wheel_zoom, xbox_select, reset"
 # view = CDSView(source=source, filters = [IndexFilter([0,2,4])])
 
 ts1 = figure(x_axis_type="datetime", width=800, height=400, title="3months_avg revenue vs 12months_avg revenue", 
-           tools="pan,wheel_zoom,box_zoom,reset,save", toolbar_location="above")
+           tools="pan,wheel_zoom,box_zoom,reset,save", toolbar_location="left")
 
 # 添加3个月数据的线条和圆圈
 ts1.line('ym', 'YoY_3', source=source, color='skyblue', legend_label='3month', line_width=2)
