@@ -167,3 +167,21 @@ elif (switch == '8'):
                             Flag_tif = False, 
                             Flag_pc_ratio = False, 
                             timesleep = 5)
+    
+
+elif (switch == '9'):
+    # insert old data
+    stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
+                            Crawl_flag = True, 
+                            MySQL_flag = True,
+                            Fetch_stock_statistics_flag = False, 
+                            
+                            Flag_sub_category=False, # 不用一直開著
+                            Flag_twse = False, 
+                            Flag_tpe_stocks = True, 
+                            Flag_tsw_stocks = True,  
+                            Flag_updown = False,   # 計算每天漲跌停家數
+                            Flag_tx = False,
+                            Flag_tif = False, 
+                            Flag_pc_ratio = False, 
+                            timesleep = 20)
