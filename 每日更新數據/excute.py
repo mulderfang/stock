@@ -15,13 +15,13 @@ db_settings = { "host": "127.0.0.1",
 
 # 更新資料庫
 # stocks = TS.Taiwan_Stocks( db_settings = db_settings, Crawl_flag = True, MySQL_flag = True,
-#                            Fetch_stock_statistics_flag = False, Flag_sub_category=False, Flag_twse = True,  timesleep = 5)
+#                            Fetch_stock_statistics_flag = False, Flag_sub_category=False, Flag_twse = True,  timesleep = 20)
 
 # Flag_sub_category 更新細產業
 
 
 # stocks = TS.Taiwan_Stocks( db_settings = db_settings, Crawl_flag = False, MySQL_flag = True,
-#                            Fetch_stock_statistics_flag = False,  timesleep = 5)
+#                            Fetch_stock_statistics_flag = False,  timesleep = 20)
 
 #漲跌停家數測試
 # stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
@@ -35,7 +35,7 @@ db_settings = { "host": "127.0.0.1",
 #                           Flag_updown = True, 
 #                           Flag_tx = False,
 #                           Flag_tif = False,  
-#                           timesleep = 5)
+#                           timesleep = 20)
 
 
 # 設定開關
@@ -55,7 +55,7 @@ if (switch == '1'):
                             Flag_tx = True,
                             Flag_tif = True, 
                             Flag_pc_ratio = True, 
-                            timesleep = 5)
+                            timesleep = 20)
 
 elif (switch == '2'):
     # 只跑大盤數據
@@ -70,7 +70,7 @@ elif (switch == '2'):
                             Flag_updown = False, 
                             Flag_tx = False,
                             Flag_tif = False, 
-                            timesleep = 5)  
+                            timesleep = 20)  
 
 elif (switch == '3'):
     # 只跑台指跟小外資數據
@@ -85,7 +85,7 @@ elif (switch == '3'):
                             Flag_updown = False,  
                             Flag_tx = True,
                             Flag_tif = True,
-                            timesleep = 5)  
+                            timesleep = 20)  
     
 elif (switch == '4'):
     # 只跑產業類別
@@ -100,7 +100,7 @@ elif (switch == '4'):
                             Flag_updown = False,  
                             Flag_tx = False,
                             Flag_tif = False,
-                            timesleep = 5)  
+                            timesleep = 20)  
     
 elif (switch == '5'):
     # 只跑舊資料
@@ -115,7 +115,7 @@ elif (switch == '5'):
                             Flag_updown = False,   # 計算每天漲跌停家數
                             Flag_tx = False,
                             Flag_tif = False, 
-                            timesleep = 5)
+                            timesleep = 20)
     
 
 elif (switch == '6'):
@@ -133,7 +133,7 @@ elif (switch == '6'):
                             Flag_tx = False,
                             Flag_tif = False, 
                             Flag_pc_ratio = True, 
-                            timesleep = 5)
+                            timesleep = 20)
     
 elif (switch == '7'):
     # 只跑 大盤
@@ -150,7 +150,7 @@ elif (switch == '7'):
                             Flag_tx = False,
                             Flag_tif = False, 
                             Flag_pc_ratio = False, 
-                            timesleep = 5)
+                            timesleep = 20)
 elif (switch == '8'):
     # 只跑 每天上漲下跌家數
     stocks = TS.Taiwan_Stocks( db_settings = db_settings, 
@@ -166,7 +166,7 @@ elif (switch == '8'):
                             Flag_tx = False,
                             Flag_tif = False, 
                             Flag_pc_ratio = False, 
-                            timesleep = 5)
+                            timesleep = 20)
     
 
 elif (switch == '9'):
@@ -185,3 +185,4 @@ elif (switch == '9'):
                             Flag_tif = False, 
                             Flag_pc_ratio = False, 
                             timesleep = 20)
+    

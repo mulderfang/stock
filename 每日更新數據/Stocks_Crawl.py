@@ -10,7 +10,7 @@ import re
 
 class Stocks_Crawl(MD.MySQL_Database):
     
-    def __init__(self, timesleep=5, Crawl_flag = True, MySQL_flag = True, 
+    def __init__(self, timesleep=20, Crawl_flag = True, MySQL_flag = True, 
                  Fetch_stock_statistics_flag = True, 
                  Flag_sub_category = True, 
                  Flag_twse = True, 
@@ -358,8 +358,9 @@ class Stocks_Crawl(MD.MySQL_Database):
     def Crawl_method(self, url, date, Date, url_suffix='', Flag_tpex_stocks=False, Flag_tpex_insti_inv=False,
                      Flag_stocks=False, Flag_insti_inv=False, Flag_twse=False, Flag_updown=False, Flag_tx = False, Flag_tif = False, Flag_pc_ratio = False):
         
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
         # 下載股價
-        r = requests.get( url + date + url_suffix)
+        r = requests.get( url + date + url_suffix, headers=headers)
 
         # 整理資料，變成表格
         
@@ -467,10 +468,13 @@ class Stocks_Crawl(MD.MySQL_Database):
                 self.df_institutional_investors = pd.concat([self.df_institutional_investors, df], ignore_index=True)
             else : 
                 self.df_institutional_investors = df.copy()   
+                
+        time.sleep(2)
 
     # 爬大盤指數
     def Crawl_twse(self, Date, url, url_suffix):
-        data = requests.get(url+Date+url_suffix, timeout=10)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        data = requests.get(url+Date+url_suffix, headers=headers, timeout=10)
         if data.text =='':
             return pd.DataFrame()
         jsondata = json.loads(data.text)
@@ -489,6 +493,8 @@ class Stocks_Crawl(MD.MySQL_Database):
             cols_to_numeric = ['價格指數值', '漲跌點數', '漲跌百分比']
             df_twse[cols_to_numeric] = df_twse[cols_to_numeric].apply(pd.to_numeric, errors='coerce')
             df_twse[cols_to_numeric] = df_twse[cols_to_numeric].fillna(0)
+            # 只讀 發行量加權股價指數
+            df_twse = df_twse[df_twse['指數名稱'] == '發行量加權股價指數'].copy()
 
             if not self.df_twse.empty and not df_twse.empty:
                 self.df_twse = pd.concat([self.df_twse, df_twse], ignore_index=True)
@@ -496,6 +502,8 @@ class Stocks_Crawl(MD.MySQL_Database):
                 self.df_twse = df_twse.copy()   
         else:
             print(Date + ' df_twse data not found' )
+        
+        time.sleep(2)
 
     # 爬期貨指數
     def Crawl_tx(self, Date, url):
@@ -508,9 +516,9 @@ class Stocks_Crawl(MD.MySQL_Database):
             'queryDate': Date,     # 查詢日期，格式為 YYYYMMDD
             'MarketCode': '0'
         }
-
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
         # 發送 POST 請求
-        response = requests.post(url, data=payload_tx, timeout=10)
+        response = requests.post(url, data=payload_tx, headers=headers , timeout=10)
 
         # 檢查請求是否成功
         if response.status_code == 200:
@@ -549,6 +557,8 @@ class Stocks_Crawl(MD.MySQL_Database):
                 print(Date + ' daily_tx_data data not found' )
         else:
                 print(f"payload_tx請求失敗，狀態碼：{response.status_code}")
+                
+        time.sleep(2)
 
     # 跑法人留倉口數
     def Crawl_tif(self, Date, url_top5 ,url_inv):
@@ -561,8 +571,9 @@ class Stocks_Crawl(MD.MySQL_Database):
         
         tx_top5_buy = 0
         tx_top5_sell = 0
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
         # 發送 POST 請求
-        response = requests.post(url_top5, data=payload_top5)
+        response = requests.post(url_top5, headers= headers, data=payload_top5)
 
         # 確認請求是否成功
         if response.status_code == 200:
@@ -603,10 +614,10 @@ class Stocks_Crawl(MD.MySQL_Database):
             'queryDate': Date,  # 若要查詢特定日期，填入日期
             'commodity_id': 'TXF'  # TX 表示臺股期貨
         }
-
-
+        
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
         # 發送 POST 請求
-        response = requests.post(url_inv, data=payload_tif)
+        response = requests.post(url_inv, headers= headers , data=payload_tif)
 
         # 檢查請求是否成功
         if response.status_code == 200:
@@ -647,7 +658,8 @@ class Stocks_Crawl(MD.MySQL_Database):
                 print(Date + ' daily_tif_investors data not found' )
         else:
             print(f"TXF請求失敗，狀態碼：{response.status_code}")
-   
+        
+        time.sleep(2)
 
     # 跑 選擇權 PC RATIO
     def Crawl_pc_ratio(self, Date, url):
@@ -658,8 +670,9 @@ class Stocks_Crawl(MD.MySQL_Database):
             'queryEndDate': Date       # 查詢日期，格式為 YYYYMMDD
         }
         
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
         # 發送 POST 請求
-        response = requests.post(url, data=payload_pc_ratio, timeout=10)
+        response = requests.post(url, data=payload_pc_ratio, headers = headers ,timeout=10)
         
         # 確認請求是否成功
         if response.status_code == 200:
@@ -704,12 +717,14 @@ class Stocks_Crawl(MD.MySQL_Database):
         else:
             print(f"put call ratio請求失敗，狀態碼：{response.status_code}")
 
+        time.sleep(2)
 
     # 爬漲跌停家數
     def Crawl_updown(self,Date, url, url_suffix):
         ROC_Date = self.date_changer(Date)
         # 先爬上市
-        data = requests.get(url+Date+url_suffix, timeout=10)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        data = requests.get(url+Date+url_suffix,headers = headers, timeout=10)
         if data.text =='':
             return pd.DataFrame()
         jsondata = json.loads(data.text)
@@ -738,7 +753,8 @@ class Stocks_Crawl(MD.MySQL_Database):
             url = "https://wwwov.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw&o=csv&d="
 
             # 下載股價
-            r = requests.get(url + ROC_Date) #要用ROC的處理
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+            r = requests.get(url + ROC_Date, headers=headers) #要用ROC的處理
 
             data = []
             for line in StringIO(r.text):
@@ -795,7 +811,8 @@ class Stocks_Crawl(MD.MySQL_Database):
         else:
             print(Date + ' df_updown_combined data not found' )
 
-
+        time.sleep(2)
+        
     def sub_category_list(self, url):
 
         #  爬蟲爬細產業 只有第一次需要或有新的股票
@@ -807,7 +824,8 @@ class Stocks_Crawl(MD.MySQL_Database):
             "dataset": "TaiwanStockInfo",
             "token": token, # 參考登入，獲取金鑰
         }
-        resp = requests.get(info_url, params=parameter)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        resp = requests.get(info_url, params=parameter , headers=headers)
         info = resp.json()
         info = pd.DataFrame(info["data"]) #個股基本資料
 
@@ -827,7 +845,8 @@ class Stocks_Crawl(MD.MySQL_Database):
             else:
                 temp_id = stock_id
                 stock_url = url + filtered_info.iloc[i].stock_id
-                result = requests.get(stock_url) #將此頁面的HTML GET下來
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+                result = requests.get(stock_url, headers=headers) #將此頁面的HTML GET下來
                 result.encoding = 'utf-8'
                 soup = BeautifulSoup(result.text,"html.parser") #將網頁資料以html.parser
                 stock_subcat = soup.find_all("h4")
@@ -1074,8 +1093,8 @@ class Stocks_Crawl(MD.MySQL_Database):
         if self.Flag_tpe_stocks:
             
             url = "https://wwwov.tpex.org.tw/web/stock/aftertrading/peratio_analysis/pera_download.php?l=zh-tw&d="+ROC_era_date+"&s=0,asc,0"
-
-            r = requests.get(url)
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+            r = requests.get(url, headers = headers)
 
             r = r.text.split("\n")
 
@@ -1088,7 +1107,10 @@ class Stocks_Crawl(MD.MySQL_Database):
             df = df[columns_title]
 
             df.rename(columns = {"殖利率(%)":"殖利率", "股票代號":"證券代號", "名稱":"證券名稱"}, inplace = True)
-
+            
+            columns_to_clean = ["本益比", "股價淨值比", "殖利率"]
+            for col in columns_to_clean:
+                df[col] = df[col].astype(str).str.replace(",", "").astype(float)
             #df = self.Get_specific_stock(df)
 
             # self.df_statistics = self.df_statistics.append(df, ignore_index=True)
@@ -1104,8 +1126,8 @@ class Stocks_Crawl(MD.MySQL_Database):
         if self.Flag_tsw_stocks:
 
             url = "https://www.twse.com.tw/exchangeReport/BWIBBU_d?response=csv&date="+date+"&selectType=ALL"
-
-            r = requests.get(url)
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+            r = requests.get(url, headers = headers)
 
             r = r.text.split("\r\n")[:-13]
 
@@ -1119,6 +1141,9 @@ class Stocks_Crawl(MD.MySQL_Database):
 
             df.rename(columns = {"殖利率(%)":"殖利率"}, inplace = True)
 
+            columns_to_clean = ["本益比", "股價淨值比", "殖利率"]
+            for col in columns_to_clean:
+                df[col] = df[col].astype(str).str.replace(",", "").astype(float)
             #df = self.Get_specific_stock(df)
 
             if not self.df_statistics.empty and not df.empty:
